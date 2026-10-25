@@ -1,0 +1,2 @@
+# Amanda-cosmetico
+loja virtual
