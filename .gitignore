@@ -1,0 +1,26 @@
+# Local secrets and environment configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated output
+**/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Runtime data and local artifacts
+backend/uploads/
+backend/*.log
+backend/logs/
+*.log
+*.local
+*.backup
+*.backup.*
+backup/
+
+# Local editor and operating-system files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
