@@ -2592,6 +2592,125 @@ section {
   color: #b33e5d;
 }
 
+.phone-registration-dialog {
+  width: min(440px, calc(100% - 32px));
+  max-width: none;
+  padding: 0;
+  border: 1px solid rgba(201, 155, 74, .24);
+  border-radius: 20px;
+  color: var(--texto);
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(45, 28, 35, .24);
+}
+
+.phone-registration-dialog::backdrop {
+  background: rgba(36, 24, 30, .58);
+  backdrop-filter: blur(3px);
+}
+
+.phone-registration-form {
+  display: grid;
+  gap: 12px;
+  padding: 30px;
+}
+
+.phone-registration-form .auth-label {
+  margin: 0;
+}
+
+.phone-registration-form h2 {
+  margin: 0;
+  color: var(--texto);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.phone-registration-form > p:not(.phone-registration-error) {
+  margin: 0;
+  color: var(--cinza-claro);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.phone-registration-form label {
+  margin-top: 6px;
+  color: var(--texto);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.phone-registration-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(201, 155, 74, .34);
+  border-radius: 10px;
+  outline: none;
+  color: var(--texto);
+  background: #fff;
+  font: inherit;
+}
+
+.phone-registration-form input:focus {
+  border-color: var(--rosa-forte);
+  box-shadow: 0 0 0 3px rgba(217, 95, 139, .12);
+}
+
+.phone-registration-form small {
+  margin-top: -6px;
+  color: var(--cinza-claro);
+  font-size: 12px;
+}
+
+.phone-registration-error {
+  min-height: 18px;
+  margin: 0;
+  color: #b33e5d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.phone-registration-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.phone-registration-actions button {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.phone-registration-cancel {
+  border: 1px solid rgba(201, 155, 74, .24);
+  color: var(--texto);
+  background: #fff;
+}
+
+.phone-registration-submit {
+  border: 1px solid var(--rosa-forte);
+  color: #fff;
+  background: var(--rosa-forte);
+}
+
+@media (max-width: 480px) {
+  .phone-registration-form {
+    padding: 24px 20px;
+  }
+
+  .phone-registration-actions button {
+    flex: 1;
+    padding: 0 12px;
+  }
+}
+
 
 /* =========================================================
    GOOGLE / APPLE

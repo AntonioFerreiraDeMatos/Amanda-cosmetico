@@ -991,6 +991,38 @@ document.querySelector('#app').innerHTML = `
 
 </footer>
 
+<dialog class="phone-registration-dialog" aria-labelledby="phone-registration-title">
+  <form class="phone-registration-form">
+    <span class="auth-label">Só falta uma etapa</span>
+    <h2 id="phone-registration-title">Informe seu celular</h2>
+    <p>
+      Vamos usar seu número para falar sobre seus pedidos e esclarecer dúvidas
+      de compra. Se preferir, informe seu WhatsApp.
+    </p>
+    <label for="registration-phone">Celular com DDD</label>
+    <input
+      id="registration-phone"
+      name="telefone"
+      type="tel"
+      inputmode="tel"
+      autocomplete="tel"
+      placeholder="(11) 99999-9999"
+      aria-describedby="registration-phone-help registration-phone-error"
+      required
+    >
+    <small id="registration-phone-help">Exemplo: (11) 99999-9999</small>
+    <p
+      class="phone-registration-error"
+      id="registration-phone-error"
+      role="alert"
+      aria-live="polite"
+    ></p>
+    <div class="phone-registration-actions">
+      <button class="phone-registration-cancel" type="button">Agora não</button>
+      <button class="phone-registration-submit" type="submit">Continuar</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- =====================================================
      WHATSAPP
@@ -1826,54 +1858,36 @@ document
         return
       }
 
-      const checkoutButton =
-        document.querySelector(
-          '.cart-checkout'
-        )
-
+      const checkoutButton = document.querySelector('.cart-checkout')
       if (!checkoutButton) return
 
-      checkoutButton.disabled =
-        true
-
-      checkoutButton.textContent =
-        'Abrindo pagamento...'
+      checkoutButton.disabled = true
+      checkoutButton.textContent = 'Abrindo pagamento...'
 
       try {
+        const response = await fetch(
+          apiUrl + '/pagamentos/checkout',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${customerToken}`,
+            },
+            body: JSON.stringify({
+              items: cart,
+            }),
+          }
+        )
 
-        const response =
-          await fetch(
-            apiUrl +
-              '/pagamentos/checkout',
-            {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json',
-                Authorization: `Bearer ${customerToken}`,
-              },
-
-              body: JSON.stringify({
-                items: cart,
-              }),
-            }
-          )
-
-        const data =
-          await response.json()
+        const data = await response.json()
 
         if (!response.ok) {
-
           throw new Error(
-            data.mensagem ||
-              'Não foi possível iniciar o pagamento.'
+            data.mensagem || 'N?o foi poss?vel iniciar o pagamento.'
           )
         }
 
-        window.location.href =
-          data.checkoutUrl
-
+        window.location.href = data.checkoutUrl
       } catch (error) {
 
         alert(
@@ -1908,8 +1922,73 @@ const googleButton =
     '.google-button'
   )
 
+const phoneRegistrationDialog =
+  document.querySelector('.phone-registration-dialog')
+
+const phoneRegistrationForm =
+  document.querySelector('.phone-registration-form')
+
+const phoneRegistrationInput =
+  document.querySelector('#registration-phone')
+
+const phoneRegistrationError =
+  document.querySelector('#registration-phone-error')
+
+let resolvePhoneRegistration
+
 const authApiUrl =
   apiUrl
+
+
+function requestPhoneRegistration() {
+  return new Promise((resolve) => {
+    resolvePhoneRegistration = resolve
+    phoneRegistrationForm.reset()
+    phoneRegistrationError.textContent = ''
+    phoneRegistrationDialog.showModal()
+    phoneRegistrationInput.focus()
+  })
+}
+
+
+phoneRegistrationDialog?.addEventListener('close', () => {
+  if (!resolvePhoneRegistration) {
+    return
+  }
+
+  const phone = phoneRegistrationDialog.returnValue === 'submit'
+    ? phoneRegistrationInput.value.trim()
+    : null
+  const resolve = resolvePhoneRegistration
+
+  resolvePhoneRegistration = null
+  resolve(phone)
+})
+
+
+phoneRegistrationForm?.addEventListener('submit', (event) => {
+  event.preventDefault()
+
+  const phone = phoneRegistrationInput.value.trim()
+  const digits = phone.replace(/\D/g, '')
+
+  if (digits.length < 10 || digits.length > 13) {
+    phoneRegistrationError.textContent =
+      'Confira o número com DDD. Use de 10 a 13 dígitos.'
+    phoneRegistrationInput.focus()
+    return
+  }
+
+  phoneRegistrationError.textContent = ''
+  phoneRegistrationDialog.close('submit')
+})
+
+
+phoneRegistrationDialog
+  ?.querySelector('.phone-registration-cancel')
+  .addEventListener('click', () => {
+    phoneRegistrationDialog.close('cancel')
+  })
 
 
 function showAuthFeedback(
@@ -2054,7 +2133,7 @@ async function loginGoogle(
 
 
   showAuthFeedback(
-    'Bem-vinda, ' +
+    'Olá, ' +
       data.cliente.nome +
       '.'
   )
@@ -2154,9 +2233,7 @@ googleButton?.addEventListener(
                 ) {
 
                   const telefone =
-                    window.prompt(
-                      'Informe seu telefone para concluir o cadastro:'
-                    )
+                    await requestPhoneRegistration()
 
 
                   if (!telefone) {
