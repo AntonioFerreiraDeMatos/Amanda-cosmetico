@@ -74,9 +74,10 @@ async function criarCheckout(req, res) {
         // HANDLE INFINITEPAY
         // =================================================
 
-        const handle = process.env.INFINITEPAY_HANDLE;
+        const apiKey = process.env.INFINITEPAY_API_KEY?.trim();
+        const handle = process.env.INFINITEPAY_HANDLE?.trim();
 
-        if (!handle) {
+        if (!apiKey && !handle) {
             return res.status(503).json({
                 sucesso: false,
                 mensagem:
@@ -408,7 +409,7 @@ async function criarCheckout(req, res) {
         // =================================================
 
         const payload = {
-            handle,
+            ...(apiKey ? {} : { handle }),
 
             order_nsu:
                 String(pedidoId),
@@ -416,9 +417,12 @@ async function criarCheckout(req, res) {
             redirect_url:
                 `${frontendUrl}/?pagamento=sucesso&pedido=${pedidoId}`,
 
-            webhook_url:
-                process.env.INFINITEPAY_WEBHOOK_URL ||
-                `${backendUrl}/api/pagamentos/webhook`,
+            webhook: {
+                url:
+                    process.env.INFINITEPAY_WEBHOOK_URL ||
+                    `${backendUrl}/api/pagamentos/webhook`,
+                events: ['paid']
+            },
 
             items:
                 infinitePayItems,
@@ -446,7 +450,8 @@ async function criarCheckout(req, res) {
 
                 headers: {
                     'Content-Type':
-                        'application/json'
+                        'application/json',
+                    ...(apiKey ? { 'X-Api-Key': apiKey } : {})
                 },
 
                 body:
