@@ -2,7 +2,7 @@ const express = require('express');
 const requireAdmin = require('../middlewares/adminAuth');
 const uploadProductImage = require('../middlewares/productUpload');
 const { adminLoginLimiter, adminLimiter } = require('../middlewares/security');
-const { zerarDadosAdmin } = require('../controllers/sistemaController');
+const { zerarDadosAdmin, exportarTudoXlsx } = require('../controllers/sistemaController');
 const {
     loginAdmin,
     resumoAdmin,
@@ -70,6 +70,7 @@ router.get('/relatorios/atencao', relatorioAtencao);
 router.get('/exportar/pedidos.csv', exportarPedidosCsv);
 router.get('/exportar/clientes.csv', exportarClientesCsv);
 router.get('/exportar/estoque.csv', exportarEstoqueCsv);
+router.get('/exportar/tudo.xlsx', exportarTudoXlsx);
 
 // Pedidos
 router.post('/pedidos', criarPedidoAdmin);

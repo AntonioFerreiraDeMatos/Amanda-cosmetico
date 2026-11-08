@@ -29,7 +29,8 @@ autenticação de clientes, pedidos via WhatsApp e painel administrativo.
   a exclusão é auditada e o número sequencial não é reaproveitado.
 - Faturamento, pagamentos e relatórios por período calculados a partir dos
   pedidos e pagamentos reais do MySQL, com exportação CSV.
-- Tela **Sistema** com a ação "Zerar dados de teste", que apaga pedidos,
+- Tela **Sistema** com "Baixar tudo em Excel" (planilha .xlsx com pedidos, itens,
+  pagamentos, clientes, produtos, categorias e estoque) e a ação "Zerar dados de teste", que apaga pedidos,
   clientes, produtos e categorias para iniciar a operação real. Exige a senha
   do administrador e a frase de confirmação; a conta administrativa e a
   auditoria são preservadas.

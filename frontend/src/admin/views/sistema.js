@@ -1,4 +1,4 @@
-import { health, session, API_URL, api } from '../api.js'
+import { health, session, API_URL, api, download } from '../api.js'
 import { icon } from '../icons.js'
 import { esc, dateTime, comingSoon, openDialog, formError, withBusy, toast } from '../ui.js'
 import { invalidate } from '../data.js'
@@ -42,8 +42,11 @@ export async function render(root) {
     <article class="card section">
       <h2 class="card-title">${icon('alert', 18)} Começar a operação real</h2>
       <p class="muted">Apaga <strong>todos</strong> os pedidos, pagamentos, clientes, produtos, imagens e categorias de teste. Sua conta de administrador e o histórico de auditoria são mantidos, e a numeração dos pedidos recomeça em AM-000001.</p>
-      <p class="muted small">Faça um backup do banco no hPanel antes. Esta ação não pode ser desfeita.</p>
-      <button class="btn btn-danger-ghost" type="button" data-action="reset">${icon('trash', 16)}Zerar dados de teste</button>
+      <p class="muted small">Antes, baixe tudo em Excel (pedidos, itens, pagamentos, clientes, produtos, categorias e estoque). As fotos não vão na planilha: para elas, use o backup do hPanel. Esta ação não pode ser desfeita.</p>
+      <div class="card-actions">
+        <button class="btn" type="button" data-action="export-all">${icon('download', 16)}Baixar tudo em Excel</button>
+        <button class="btn btn-danger-ghost" type="button" data-action="reset">${icon('trash', 16)}Zerar dados de teste</button>
+      </div>
     </article>
     <section class="section" aria-labelledby="soon-title">
       <h2 id="soon-title" class="section-title">Em breve</h2>
@@ -72,6 +75,12 @@ export async function render(root) {
   }
   root.querySelector('[data-action="check"]').addEventListener('click', check)
   root.querySelector('[data-action="reset"]').addEventListener('click', openReset)
+  root.querySelector('[data-action="export-all"]').addEventListener('click', (e) => withBusy(e.currentTarget, 'Gerando planilha...', async () => {
+    try {
+      await download('/admin/exportar/tudo.xlsx', `amanda-cosmeticos-dados-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast('Planilha baixada.')
+    } catch (error) { toast(error.message, 'error') }
+  }))
   check()
 }
 
