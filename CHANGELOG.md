@@ -23,5 +23,4 @@
 ### Pendências externas
 
 - Cadastrar produtos reais no banco de produção.
-- Confirmar e validar login Google, administrador e checkout/webhook InfinitePay
-  com as credenciais finais no painel Hostinger.
+- Configurar a chave Pix e confirmar o recebimento manualmente no painel.

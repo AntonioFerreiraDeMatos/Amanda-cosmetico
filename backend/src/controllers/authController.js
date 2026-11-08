@@ -1,6 +1,7 @@
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
@@ -11,6 +12,13 @@ const googleClient = new OAuth2Client(
 // ==========================================
 
 async function loginGoogle(req, res) {
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return res.status(503).json({
+      sucesso: false,
+      mensagem: 'O login Google ainda não está configurado no servidor.'
+    });
+  }
+
   try {
     const { idToken, telefone } = req.body;
 
@@ -220,7 +228,7 @@ async function loginGoogle(req, res) {
     });
 
   } catch (error) {
-    console.error('Erro no login Google:', error);
+    logError('Erro no login Google', error);
 
     return res.status(401).json({
       sucesso: false,
@@ -284,7 +292,7 @@ async function loginTelefone(req, res) {
 
     return res.json({ sucesso: true, mensagem: 'Entrada realizada com sucesso.', token, cliente });
   } catch (error) {
-    console.error('Erro no acesso por nome e telefone:', error);
+    logError('Erro no acesso por nome e telefone', error);
     return res.status(500).json({ sucesso: false, mensagem: 'Não foi possível realizar sua entrada.' });
   }
 }

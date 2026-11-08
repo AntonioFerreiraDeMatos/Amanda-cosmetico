@@ -16,8 +16,21 @@ async function migrate() {
 
     try {
         await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                filename varchar(255) NOT NULL,
+                aplicado_em timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (filename)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
 
         for (const file of files) {
+            const [applied] = await connection.query(
+                'SELECT filename FROM schema_migrations WHERE filename = ? LIMIT 1',
+                [file]
+            );
+            if (applied.length) continue;
+
             const sql = fs.readFileSync(path.join(directory, file), 'utf8')
                 .replace(/^\uFEFF/, '');
             const statements = sql.split(/;\s*(?:\r?\n|$)/)
@@ -27,6 +40,10 @@ async function migrate() {
             for (const statement of statements) {
                 await connection.query(statement);
             }
+            await connection.query(
+                'INSERT INTO schema_migrations (filename) VALUES (?)',
+                [file]
+            );
         }
     } finally {
         try {

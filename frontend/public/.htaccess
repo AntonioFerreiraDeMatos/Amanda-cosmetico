@@ -1,0 +1,3 @@
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^amandacosmeticos\.com\.br$ [NC]
+RewriteRule ^ https://www.amandacosmeticos.com.br%{REQUEST_URI} [R=301,L]

@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const fallbackProdutos = [
     {
@@ -111,7 +112,7 @@ async function listarProdutos(req, res) {
         });
 
     } catch (error) {
-        console.error('Erro ao listar produtos:', error);
+        logError('Erro ao listar produtos', error);
 
         res.status(200).json({
             sucesso: true,
@@ -180,7 +181,7 @@ async function buscarProdutoPorId(req, res) {
         });
 
     } catch (error) {
-        console.error('Erro ao buscar produto:', error);
+        logError('Erro ao buscar produto', error);
 
         res.status(500).json({
             sucesso: false,

@@ -1,20 +1,12 @@
 const express = require('express');
 
-const {
-    criarCheckout,
-    webhookInfinitePay
-} = require('../controllers/pagamentoController');
-const { autenticarCliente } = require('../middlewares/auth');
-
 const router = express.Router();
 
-// Criar checkout da InfinitePay
-router.post('/checkout', autenticarCliente, criarCheckout);
-
-// Webhook da InfinitePay
-router.post(
-    '/webhook',
-    webhookInfinitePay
-);
+router.post('/checkout', (req, res) => {
+    res.status(410).json({
+        sucesso: false,
+        mensagem: 'O checkout foi desativado. Registre o pedido em /api/pedidos e combine o Pix pelo WhatsApp.'
+    });
+});
 
 module.exports = router;

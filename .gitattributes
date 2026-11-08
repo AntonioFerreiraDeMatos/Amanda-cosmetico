@@ -1,0 +1,14 @@
+# Arquivos de texto sempre com LF no repositório e no checkout.
+* text=auto eol=lf
+
+# Binários
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.jfif binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary

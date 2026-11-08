@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { logError } = require('../utils/logger');
 
 const fallbackCategorias = [
     { id: 1, nome: 'Skincare', slug: 'skincare', descricao: 'Cuidados para uma pele radiante.', imagem_url: '' },
@@ -32,7 +33,7 @@ async function listarCategorias(req, res) {
         });
 
     } catch (error) {
-        console.error('Erro ao listar categorias:', error);
+        logError('Erro ao listar categorias', error);
 
         res.status(200).json({
             sucesso: true,

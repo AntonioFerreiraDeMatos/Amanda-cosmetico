@@ -1,43 +1,23 @@
 const pool = require('../config/database');
-
-const INFINITEPAY_API = 'https://api.checkout.infinitepay.io';
-
-function valorEmCentavos(valor) {
-    return Math.round(Number(valor) * 100);
-}
-
-// =====================================================
-// CRIAR CHECKOUT INFINITEPAY
-// =====================================================
+const {
+    reservarNumeroPedido,
+    vincularNumeroPedido
+} = require('../utils/pedidoNumero');
 
 async function criarCheckout(req, res) {
     let connection;
 
     try {
-        const {
-            items,
-            endereco_id = null
-        } = req.body;
+        const { items, endereco_id = null } = req.body;
+        const cliente_id = Number(req.cliente?.id);
+        const pixKey = process.env.PIX_KEY?.trim();
 
-        // =================================================
-        // CLIENTE AUTENTICADO PELO JWT
-        // =================================================
-
-        const cliente_id = req.cliente?.id;
-
-        if (
-            !Number.isInteger(Number(cliente_id)) ||
-            Number(cliente_id) < 1
-        ) {
+        if (!Number.isInteger(cliente_id) || cliente_id < 1) {
             return res.status(401).json({
                 sucesso: false,
                 mensagem: 'Cliente não autenticado.'
             });
         }
-
-        // =================================================
-        // VALIDAÇÃO DO CARRINHO
-        // =================================================
 
         if (!Array.isArray(items) || items.length === 0) {
             return res.status(400).json({
@@ -46,65 +26,38 @@ async function criarCheckout(req, res) {
             });
         }
 
-        const requestedItems = Object.values(items.reduce((grouped, item) => {
-            const id = Number(item.id);
-            const quantity = Number(item.quantity);
+        const quantities = new Map();
 
-            grouped[id] = grouped[id] || { id, quantity: 0 };
-            grouped[id].quantity += quantity;
-            return grouped;
-        }, {}));
+        for (const item of items) {
+            const id = Number(item?.id);
+            const quantity = Number(item?.quantity);
 
-        if (
-            requestedItems.some(
-                (item) =>
-                    !Number.isInteger(item.id) ||
-                    item.id < 1 ||
-                    !Number.isInteger(item.quantity) ||
-                    item.quantity < 1
-            )
-        ) {
-            return res.status(400).json({
-                sucesso: false,
-                mensagem: 'Itens do carrinho inválidos.'
-            });
+            if (
+                !Number.isInteger(id) ||
+                id < 1 ||
+                !Number.isInteger(quantity) ||
+                quantity < 1
+            ) {
+                return res.status(400).json({
+                    sucesso: false,
+                    mensagem: 'Itens do carrinho inválidos.'
+                });
+            }
+
+            quantities.set(id, (quantities.get(id) || 0) + quantity);
         }
 
-        // =================================================
-        // HANDLE INFINITEPAY
-        // =================================================
-
-        const apiKey = process.env.INFINITEPAY_API_KEY?.trim();
-        const handle = process.env.INFINITEPAY_HANDLE?.trim();
-
-        if (!apiKey && !handle) {
-            return res.status(503).json({
-                sucesso: false,
-                mensagem:
-                    'InfinitePay ainda não está configurada no servidor.'
-            });
-        }
-
-        // =================================================
-        // CONEXÃO COM BANCO
-        // =================================================
+        const requestedItems = Array.from(
+            quantities,
+            ([id, quantity]) => ({ id, quantity })
+        );
 
         connection = await pool.getConnection();
-
         await connection.beginTransaction();
-
-        // =================================================
-        // CLIENTE
-        // =================================================
 
         const [clientes] = await connection.query(
             `
-            SELECT
-                id,
-                nome,
-                email,
-                telefone,
-                ativo
+            SELECT id, ativo
             FROM clientes
             WHERE id = ?
             LIMIT 1
@@ -115,27 +68,19 @@ async function criarCheckout(req, res) {
 
         if (!clientes.length) {
             await connection.rollback();
-
             return res.status(404).json({
                 sucesso: false,
                 mensagem: 'Cliente não encontrado.'
             });
         }
 
-        const cliente = clientes[0];
-
-        if (!cliente.ativo) {
+        if (!clientes[0].ativo) {
             await connection.rollback();
-
             return res.status(403).json({
                 sucesso: false,
                 mensagem: 'Cliente desativado.'
             });
         }
-
-        // =================================================
-        // ENDEREÇO
-        // =================================================
 
         if (endereco_id !== null) {
             const [enderecos] = await connection.query(
@@ -147,15 +92,11 @@ async function criarCheckout(req, res) {
                 LIMIT 1
                 FOR SHARE
                 `,
-                [
-                    endereco_id,
-                    cliente_id
-                ]
+                [endereco_id, cliente_id]
             );
 
             if (!enderecos.length) {
                 await connection.rollback();
-
                 return res.status(400).json({
                     sucesso: false,
                     mensagem: 'Endereço inválido.'
@@ -163,31 +104,11 @@ async function criarCheckout(req, res) {
             }
         }
 
-        // =================================================
-        // PRODUTOS
-        // =================================================
-
-        const ids = [
-            ...new Set(
-                requestedItems.map(
-                    (item) => item.id
-                )
-            )
-        ];
-
-        const placeholders = ids
-            .map(() => '?')
-            .join(', ');
-
+        const ids = requestedItems.map((item) => item.id);
+        const placeholders = ids.map(() => '?').join(', ');
         const [products] = await connection.query(
             `
-            SELECT
-                id,
-                nome,
-                preco,
-                preco_promocional,
-                estoque,
-                ativo
+            SELECT id, nome, preco, preco_promocional, estoque
             FROM produtos
             WHERE id IN (${placeholders})
               AND ativo = TRUE
@@ -197,82 +118,52 @@ async function criarCheckout(req, res) {
         );
 
         const productsById = new Map(
-            products.map(
-                (product) => [
-                    Number(product.id),
-                    product
-                ]
-            )
+            products.map((product) => [Number(product.id), product])
         );
-
-        // =================================================
-        // ITENS DO PEDIDO
-        // =================================================
-
         const orderItems = [];
-
         let subtotal = 0;
 
         for (const item of requestedItems) {
-            const product =
-                productsById.get(item.id);
+            const product = productsById.get(item.id);
 
             if (!product) {
                 await connection.rollback();
-
                 return res.status(400).json({
                     sucesso: false,
-                    mensagem:
-                        'Um dos produtos não está disponível.'
+                    mensagem: 'Um dos produtos não está disponível.'
                 });
             }
 
-            if (
-                item.quantity >
-                Number(product.estoque)
-            ) {
+            if (item.quantity > Number(product.estoque)) {
                 await connection.rollback();
-
                 return res.status(400).json({
                     sucesso: false,
-                    mensagem:
-                        `Estoque insuficiente para ${product.nome}.`
+                    mensagem: `Estoque insuficiente para ${product.nome}.`
                 });
             }
 
-            const preco = Number(
-                product.preco_promocional ||
-                product.preco
-            );
-
-            const itemSubtotal =
-                preco * item.quantity;
-
+            const preco = Number(product.preco_promocional || product.preco);
+            const itemSubtotal = preco * item.quantity;
             subtotal += itemSubtotal;
-
             orderItems.push({
-                produto_id:
-                    Number(product.id),
-
-                nome_produto:
-                    product.nome,
-
-                quantidade:
-                    item.quantity,
-
-                preco_unitario:
-                    preco,
-
-                subtotal:
-                    itemSubtotal
+                produto_id: Number(product.id),
+                nome_produto: product.nome,
+                quantidade: item.quantity,
+                estoque_antes: Number(product.estoque),
+                preco_unitario: preco,
+                subtotal: itemSubtotal
             });
         }
 
         for (const item of orderItems) {
             const [result] = await connection.query(
-                `UPDATE produtos
-                 SET estoque = estoque - ?
-                 WHERE id = ? AND ativo = TRUE AND estoque >= ?`,
+                `
+                UPDATE produtos
+                SET estoque = estoque - ?
+                WHERE id = ?
+                  AND ativo = TRUE
+                  AND estoque >= ?
+                `,
                 [item.quantidade, item.produto_id, item.quantidade]
             );
 
@@ -285,68 +176,40 @@ async function criarCheckout(req, res) {
             }
         }
 
-        // =================================================
-        // VALORES
-        // =================================================
-
         const desconto = 0;
         const frete = 0;
+        const total = subtotal - desconto + frete;
+        const reservaNumero = await reservarNumeroPedido(connection);
+        const [pedidoResult] = await connection.query(
+            `
+            INSERT INTO pedidos
+            (
+                cliente_id,
+                endereco_id,
+                numero_pedido,
+                numero_exibicao,
+                status,
+                subtotal,
+                desconto,
+                frete,
+                total
+            )
+            VALUES (?, ?, ?, ?, 'aguardando_pagamento', ?, ?, ?, ?)
+            `,
+            [
+                cliente_id,
+                endereco_id,
+                reservaNumero.numero,
+                reservaNumero.numero,
+                subtotal,
+                desconto,
+                frete,
+                total
+            ]
+        );
 
-        const total =
-            subtotal -
-            desconto +
-            frete;
-
-        // =================================================
-        // CRIA PEDIDO
-        // =================================================
-
-        const numeroPedido =
-            gerarNumeroPedido();
-
-        const [pedidoResult] =
-            await connection.query(
-                `
-                INSERT INTO pedidos
-                (
-                    cliente_id,
-                    endereco_id,
-                    numero_pedido,
-                    status,
-                    subtotal,
-                    desconto,
-                    frete,
-                    total
-                )
-                VALUES
-                (
-                    ?,
-                    ?,
-                    ?,
-                    'aguardando_pagamento',
-                    ?,
-                    ?,
-                    ?,
-                    ?
-                )
-                `,
-                [
-                    cliente_id,
-                    endereco_id,
-                    numeroPedido,
-                    subtotal,
-                    desconto,
-                    frete,
-                    total
-                ]
-            );
-
-        const pedidoId =
-            pedidoResult.insertId;
-
-        // =================================================
-        // ITENS DO PEDIDO
-        // =================================================
+        const pedidoId = pedidoResult.insertId;
+        await vincularNumeroPedido(connection, reservaNumero.sequencial, pedidoId);
 
         for (const item of orderItems) {
             await connection.query(
@@ -360,8 +223,7 @@ async function criarCheckout(req, res) {
                     preco_unitario,
                     subtotal
                 )
-                VALUES
-                (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 `,
                 [
                     pedidoId,
@@ -372,298 +234,20 @@ async function criarCheckout(req, res) {
                     item.subtotal
                 ]
             );
+            await connection.query(`
+                INSERT INTO estoque_movimentacoes
+                    (produto_id, pedido_id, tipo, quantidade_anterior,
+                     quantidade_nova, diferenca, motivo)
+                VALUES (?, ?, 'baixa_pedido', ?, ?, ?, ?)
+            `, [
+                item.produto_id,
+                pedidoId,
+                item.estoque_antes,
+                item.estoque_antes - item.quantidade,
+                -item.quantidade,
+                `Baixa automática do pedido ${reservaNumero.numero}.`
+            ]);
         }
-
-        // =================================================
-        // ITENS INFINITEPAY
-        // =================================================
-
-        const infinitePayItems =
-            orderItems.map((item) => ({
-                quantity:
-                    item.quantidade,
-
-                price:
-                    valorEmCentavos(
-                        item.preco_unitario
-                    ),
-
-                description:
-                    item.nome_produto
-            }));
-
-        // =================================================
-        // URLS
-        // =================================================
-
-        const frontendUrl =
-            process.env.FRONTEND_URL ||
-            'http://localhost:5173';
-
-        const backendUrl =
-            process.env.BACKEND_URL ||
-            'http://localhost:3000';
-
-        // =================================================
-        // PAYLOAD INFINITEPAY
-        // =================================================
-
-        const payload = {
-            ...(apiKey ? {} : { handle }),
-
-            order_nsu:
-                String(pedidoId),
-
-            redirect_url:
-                `${frontendUrl}/?pagamento=sucesso&pedido=${pedidoId}`,
-
-            webhook: {
-                url:
-                    process.env.INFINITEPAY_WEBHOOK_URL ||
-                    `${backendUrl}/api/pagamentos/webhook`,
-                events: ['paid']
-            },
-
-            items:
-                infinitePayItems,
-
-            customer: {
-                name:
-                    cliente.nome,
-
-                email:
-                    cliente.email,
-
-                phone_number:
-                    cliente.telefone || undefined
-            }
-        };
-
-        // =================================================
-        // ENVIA PARA INFINITEPAY
-        // =================================================
-
-        const response = await fetch(
-            `${INFINITEPAY_API}/links`,
-            {
-                method: 'POST',
-
-                headers: {
-                    'Content-Type':
-                        'application/json',
-                    ...(apiKey ? { 'X-Api-Key': apiKey } : {})
-                },
-
-                body:
-                    JSON.stringify(payload)
-            }
-        );
-
-        const data =
-            await response.json();
-
-        if (!response.ok || !data.url) {
-            throw new Error(
-                data.message ||
-                'A InfinitePay não conseguiu criar o checkout.'
-            );
-        }
-
-        // =================================================
-        // FINALIZA TRANSAÇÃO
-        // =================================================
-
-        await connection.commit();
-
-        // =================================================
-        // RESPOSTA
-        // =================================================
-
-        return res.status(201).json({
-            sucesso: true,
-
-            pedido: {
-                id:
-                    Number(pedidoId),
-
-                numero_pedido:
-                    numeroPedido,
-
-                total:
-                    Number(
-                        total.toFixed(2)
-                    ),
-
-                status:
-                    'aguardando_pagamento'
-            },
-
-            checkoutUrl:
-                data.url
-        });
-
-    } catch (error) {
-
-        if (connection) {
-            await connection.rollback();
-        }
-
-        console.error(
-            'Erro ao criar checkout InfinitePay:',
-            error
-        );
-
-        return res.status(500).json({
-            sucesso: false,
-            mensagem:
-                'Não foi possível iniciar o pagamento.'
-        });
-
-    } finally {
-
-        if (connection) {
-            connection.release();
-        }
-    }
-}
-
-// =====================================================
-// WEBHOOK INFINITEPAY
-// =====================================================
-
-async function webhookInfinitePay(req, res) {
-    let connection;
-
-    try {
-        const data = req.body || {};
-
-        const orderNsu =
-            String(
-                data.order_nsu || ''
-            );
-
-        const transactionNsu =
-            String(
-                data.transaction_nsu || ''
-            );
-
-        if (!orderNsu || !transactionNsu) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    'Dados do pagamento inválidos.'
-            });
-        }
-
-        const pedidoId =
-            Number(orderNsu);
-
-        if (
-            !Number.isInteger(pedidoId) ||
-            pedidoId < 1
-        ) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    'Pedido inválido.'
-            });
-        }
-
-        connection =
-            await pool.getConnection();
-
-        await connection.beginTransaction();
-
-        // =================================================
-        // LOCALIZA PEDIDO
-        // =================================================
-
-        const [orders] =
-            await connection.query(
-                `
-                SELECT
-                    id,
-                    total,
-                    status
-                FROM pedidos
-                WHERE id = ?
-                LIMIT 1
-                FOR UPDATE
-                `,
-                [pedidoId]
-            );
-
-        if (!orders.length) {
-            await connection.rollback();
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    'Pedido não encontrado.'
-            });
-        }
-
-        const order =
-            orders[0];
-
-        // =================================================
-        // EVITA DUPLICIDADE
-        // =================================================
-
-        const [existing] =
-            await connection.query(
-                `
-                SELECT id
-                FROM pagamentos
-                WHERE transacao_id = ?
-                LIMIT 1
-                `,
-                [transactionNsu]
-            );
-
-        if (existing.length) {
-            await connection.rollback();
-
-            return res.status(200).json({
-                success: true,
-                message: null
-            });
-        }
-
-        // =================================================
-        // MÉTODO DE PAGAMENTO
-        // =================================================
-
-        const captureMethod =
-            String(
-                data.capture_method || ''
-            ).toLowerCase();
-
-        const metodo =
-            captureMethod === 'pix'
-                ? 'pix'
-                : 'cartao';
-
-        // =================================================
-        // VALOR
-        // =================================================
-
-        const valor =
-            Number(
-                data.amount || 0
-            ) / 100;
-
-        if (!Number.isFinite(valor) || Math.abs(valor - Number(order.total)) > 0.01) {
-            await connection.rollback();
-            return res.status(400).json({
-                success: false,
-                message: 'O valor recebido não corresponde ao pedido.'
-            });
-        }
-
-        // =================================================
-        // REGISTRA PAGAMENTO
-        // =================================================
 
         await connection.query(
             `
@@ -672,113 +256,52 @@ async function webhookInfinitePay(req, res) {
                 pedido_id,
                 metodo,
                 status,
-                valor,
-                transacao_id,
-                pago_em
+                valor
             )
-            VALUES
-            (?, ?, 'aprovado', ?, ?, NOW())
+            VALUES (?, 'pix', 'pendente', ?)
             `,
-            [
-                pedidoId,
-                metodo,
-                valor,
-                transactionNsu
-            ]
+            [pedidoId, total]
         );
-
-        // =================================================
-        // ATUALIZA PEDIDO
-        // =================================================
-
-        if (
-            order.status !== 'pago'
-        ) {
-            await connection.query(
-                `
-                UPDATE pedidos
-                SET status = 'pago'
-                WHERE id = ?
-                  AND status IN
-                  (
-                      'pendente',
-                      'aguardando_pagamento'
-                  )
-                `,
-                [pedidoId]
-            );
-        }
 
         await connection.commit();
 
-        console.log(
-            `✅ Pagamento InfinitePay confirmado: pedido ${pedidoId}`
-        );
-
-        return res.status(200).json({
-            success: true,
-            message: null
+        return res.status(201).json({
+            sucesso: true,
+            pedido: {
+                id: Number(pedidoId),
+                numero_pedido: reservaNumero.numero,
+                numero_exibicao: reservaNumero.numero,
+                total: Number(total.toFixed(2)),
+                status: 'aguardando_pagamento',
+                itens: orderItems.map((item) => ({
+                    nome_produto: item.nome_produto,
+                    quantidade: item.quantidade,
+                    subtotal: Number(item.subtotal.toFixed(2))
+                }))
+            },
+            pagamento: {
+                metodo: 'pix',
+                status: 'pendente',
+                ...(pixKey ? { chave: pixKey } : {})
+            }
         });
-
     } catch (error) {
-
         if (connection) {
             await connection.rollback();
         }
 
-        console.error(
-            'Erro no webhook InfinitePay:',
-            error
-        );
-
-        return res.status(400).json({
-            success: false,
-            message:
-                'Não foi possível processar o pagamento.'
+        console.error('Erro ao criar pedido Pix:', error);
+        return res.status(500).json({
+            sucesso: false,
+            mensagem: 'Não foi possível iniciar o pagamento Pix.'
         });
-
     } finally {
-
         if (connection) {
             connection.release();
         }
     }
 }
 
-// =====================================================
-// GERAR NÚMERO DO PEDIDO
-// =====================================================
-
-function gerarNumeroPedido() {
-    const agora = new Date();
-
-    const ano =
-        agora.getFullYear();
-
-    const mes =
-        String(
-            agora.getMonth() + 1
-        ).padStart(2, '0');
-
-    const dia =
-        String(
-            agora.getDate()
-        ).padStart(2, '0');
-
-    const aleatorio =
-        Math.floor(
-            100000 +
-            Math.random() * 900000
-        );
-
-    return `AM-${ano}${mes}${dia}-${aleatorio}`;
-}
-
-// =====================================================
-// EXPORTS
-// =====================================================
-
 module.exports = {
-    criarCheckout,
-    webhookInfinitePay
+    criarCheckout
 };

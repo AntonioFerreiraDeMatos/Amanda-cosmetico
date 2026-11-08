@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const express = require('express');
 const cors = require('cors');
@@ -7,6 +7,10 @@ const path = require('path');
 const pool = require('./config/database');
 const migrate = require('./config/migrate');
 const bootstrapAdmin = require('./config/bootstrapAdmin');
+const { allowedOrigins, trustProxySetting, validateEnv } = require('./config/env');
+const { logError, logWarn, logInfo } = require('./utils/logger');
+const { securityHeaders, apiLimiter } = require('./middlewares/security');
+const { notFound, errorHandler } = require('./middlewares/errorHandler');
 
 const authRoutes = require('./routes/authRoutes');
 const produtoRoutes = require('./routes/produtoRoutes');
@@ -18,71 +22,64 @@ const pedidoRoutes = require('./routes/pedidoRoutes');
 
 const app = express();
 
+// Fica false só enquanto startServer() aplica migrations após o listen().
+let appReady = true;
+app.use((req, res, next) => {
+    if (appReady) return next();
+    return res.status(503).json({ erro: 'API iniciando, tente novamente em instantes.' });
+});
+
 app.disable('x-powered-by');
-
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+// Necessário atrás do proxy da Hostinger para o rate limit enxergar o IP real.
+app.set('trust proxy', trustProxySetting());
 
 // ==========================================
-// CONFIGURAÇÕES
+// SEGURANÇA E CORS
 // ==========================================
+
+const origins = allowedOrigins();
+
+app.use(securityHeaders());
 
 app.use(cors({
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    exposedHeaders: ['Content-Disposition'],
+    maxAge: 600,
     origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Sem Origin: requisições servidor-a-servidor, curl, health check.
+        if (!origin || origins.includes(origin)) {
             return callback(null, true);
         }
 
-        return callback(new Error('Origem não autorizada.'));
+        const error = new Error('Origem não autorizada.');
+        error.code = 'CORS_ORIGIN_DENIED';
+        return callback(error);
     }
 }));
 
 app.use(express.json({ limit: '1mb' }));
 
+// ==========================================
+// ARQUIVOS ENVIADOS (imagens de produtos)
+// ==========================================
+
 app.use(
     '/uploads',
-    express.static(
-        path.resolve(__dirname, '../uploads')
-    )
+    (req, res, next) => {
+        res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; sandbox");
+        next();
+    },
+    express.static(path.resolve(__dirname, '../uploads'), {
+        dotfiles: 'deny',
+        index: false,
+        redirect: false,
+        maxAge: '7d'
+    })
 );
 
 // ==========================================
-// ROTAS DA API
-// ==========================================
-
-app.use('/api/produtos', produtoRoutes);
-
-app.use('/api/categorias', categoriaRoutes);
-
-app.use('/api/clientes', clienteRoutes);
-
-app.use('/api/auth', authRoutes);
-
-app.use('/api/admin', adminRoutes);
-
-app.use('/api/pagamentos', pagamentoRoutes);
-
-app.use('/api/pedidos', pedidoRoutes);
-
-app.use((error, req, res, next) => {
-    if (res.headersSent) return next(error);
-
-    console.error('Erro na API:', error.message);
-
-    const status = error.name === 'MulterError' || error.message?.includes('A imagem deve ser')
-        ? 400
-        : 500;
-
-    res.status(status).json({
-        sucesso: false,
-        mensagem: error.message || 'Erro interno do servidor.'
-    });
-});
-
-// ==========================================
-// ROTA PRINCIPAL
+// HEALTH CHECK
 // ==========================================
 
 app.get('/', (req, res) => {
@@ -92,46 +89,42 @@ app.get('/', (req, res) => {
     });
 });
 
-// ==========================================
-// HEALTH CHECK
-// ==========================================
-
 app.get('/api/health', async (req, res) => {
-    let connection;
-
+    res.setHeader('Cache-Control', 'no-store');
     try {
-        connection = await pool.getConnection();
-
-        await connection.query('SELECT 1');
-
-        res.json({
+        await pool.query('SELECT 1');
+        return res.json({
             sucesso: true,
             api: 'online',
             banco: 'conectado',
-            database: process.env.DB_NAME
+            horario: new Date().toISOString()
         });
-
     } catch (error) {
-
-        console.error(
-            'Erro na conexão com o banco:',
-            error.message
-        );
-
-        res.status(500).json({
+        logError('Health check: banco indisponível', error);
+        return res.status(503).json({
             sucesso: false,
             api: 'online',
             banco: 'erro',
             mensagem: 'Não foi possível conectar ao banco de dados.'
         });
-
-    } finally {
-
-        if (connection) {
-            connection.release();
-        }
     }
 });
+
+// ==========================================
+// ROTAS DA API
+// ==========================================
+
+app.use('/api', apiLimiter);
+app.use('/api/produtos', produtoRoutes);
+app.use('/api/categorias', categoriaRoutes);
+app.use('/api/clientes', clienteRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/pagamentos', pagamentoRoutes);
+app.use('/api/pedidos', pedidoRoutes);
+
+app.use(notFound);
+app.use(errorHandler);
 
 // ==========================================
 // SERVIDOR
@@ -140,16 +133,33 @@ app.get('/api/health', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
+    const { errors, warnings } = validateEnv();
+    warnings.forEach((warning) => logWarn(warning));
+    if (errors.length) {
+        throw new Error(`Configuração inválida: ${errors.join(' ')}`);
+    }
+
+    // A Hostinger exige listen() em até 3s; migrations rodam depois,
+    // e as requisições recebem 503 até o banco estar pronto.
+    appReady = false;
+    await new Promise((resolve) => {
+        app.listen(PORT, () => {
+            logInfo(`API Amanda Cosméticos rodando na porta ${PORT}`);
+            resolve();
+        });
+    });
+
     await migrate();
     await bootstrapAdmin();
+    appReady = true;
+}
 
-    app.listen(PORT, () => {
-        console.log(`API Amanda Cosméticos rodando na porta ${PORT}`);
+if (process.env.NODE_ENV !== 'test') {
+    startServer().catch(async (error) => {
+        logError('Não foi possível iniciar a API', error);
+        await pool.end();
+        process.exitCode = 1;
     });
 }
 
-startServer().catch(async (error) => {
-    console.error('Não foi possível iniciar a API:', error.message);
-    await pool.end();
-    process.exitCode = 1;
-});
+module.exports = { app, startServer };
