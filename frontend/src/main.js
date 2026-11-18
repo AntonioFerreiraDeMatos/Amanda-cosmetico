@@ -555,6 +555,10 @@ document.querySelector('#app').innerHTML = `
   id="login"
 >
 
+  <div class="auth-orbs" aria-hidden="true">
+    <span></span><span></span><span></span>
+  </div>
+
   <div class="auth-card">
 
     <div class="auth-brand">
@@ -567,26 +571,49 @@ document.querySelector('#app').innerHTML = `
     </div>
 
     <span class="auth-label">
+      <span class="auth-label-dot" aria-hidden="true"></span>
       Área exclusiva
     </span>
 
     <h1>
-      Bem-vinda.
+      Bem-vinda<span class="auth-title-accent">.</span>
     </h1>
 
-    <p>
-      Entre para acompanhar seus pedidos
-      e deixar suas compras ainda mais práticas.
+    <p class="auth-subtitle">
+      Entre em um toque e tenha sua beleza
+      sempre à mão.
     </p>
+
+    <ul class="auth-perks">
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+        <span>Acompanhe seus pedidos</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        <span>Checkout mais rápido</span>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.4-9.3-9A5.3 5.3 0 0112 6a5.3 5.3 0 019.3 6c-2.3 4.6-9.3 9-9.3 9z"/></svg>
+        <span>Ofertas para você</span>
+      </li>
+    </ul>
 
 
     <!-- GOOGLE -->
 
-    <div
-      class="google-button"
-      id="google-button"
-      aria-label="Continuar com Google"
-    ></div>
+    <div class="google-button-shell">
+      <div
+        class="google-button"
+        id="google-button"
+        aria-label="Continuar com Google"
+      ></div>
+    </div>
+
+    <span class="auth-secure">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+      Login seguro pelo Google · sem senha para lembrar
+    </span>
 
 
     <p
@@ -962,24 +989,42 @@ document.querySelector('#app').innerHTML = `
 
 <dialog class="phone-registration-dialog" aria-labelledby="phone-registration-title">
   <form class="phone-registration-form">
+    <ol class="phone-steps" aria-label="Etapas do cadastro">
+      <li class="is-done"><span class="phone-step-dot">✓</span>Google</li>
+      <li class="is-current" aria-current="step"><span class="phone-step-dot">2</span>Celular</li>
+      <li><span class="phone-step-dot">3</span>Pronto</li>
+    </ol>
+
+    <div class="phone-registration-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10.5 18h3"/></svg>
+    </div>
+
     <span class="auth-label">Só falta uma etapa</span>
-    <h2 id="phone-registration-title">Informe seu celular</h2>
+    <h2 id="phone-registration-title">Qual é o seu celular?</h2>
     <p>
-      Vamos usar seu número para falar sobre seus pedidos e esclarecer dúvidas
-      de compra. Se preferir, informe seu WhatsApp.
+      Usamos seu número só para falar sobre seus pedidos. De preferência,
+      informe seu WhatsApp.
     </p>
     <label for="registration-phone">Celular com DDD</label>
-    <input
-      id="registration-phone"
-      name="telefone"
-      type="tel"
-      inputmode="tel"
-      autocomplete="tel"
-      placeholder="(11) 99999-9999"
-      aria-describedby="registration-phone-help registration-phone-error"
-      required
-    >
-    <small id="registration-phone-help">Exemplo: (11) 99999-9999</small>
+    <div class="phone-input-wrap">
+      <span class="phone-input-prefix" aria-hidden="true">🇧🇷 +55</span>
+      <input
+        id="registration-phone"
+        name="telefone"
+        type="tel"
+        inputmode="numeric"
+        autocomplete="tel-national"
+        maxlength="16"
+        placeholder="(85) 99999-9999"
+        aria-describedby="registration-phone-help registration-phone-error"
+        required
+      >
+      <span class="phone-input-check" aria-hidden="true">✓</span>
+    </div>
+    <small id="registration-phone-help">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+      Seus dados ficam protegidos e nunca são compartilhados.
+    </small>
     <p
       class="phone-registration-error"
       id="registration-phone-error"
@@ -988,7 +1033,10 @@ document.querySelector('#app').innerHTML = `
     ></p>
     <div class="phone-registration-actions">
       <button class="phone-registration-cancel" type="button">Agora não</button>
-      <button class="phone-registration-submit" type="submit">Continuar</button>
+      <button class="phone-registration-submit" type="submit">
+        Concluir cadastro
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
     </div>
   </form>
 </dialog>
@@ -2584,6 +2632,9 @@ function requestPhoneRegistration() {
   return new Promise((resolve) => {
     resolvePhoneRegistration = resolve
     phoneRegistrationForm.reset()
+    phoneRegistrationForm
+      .querySelector('.phone-input-wrap')
+      ?.classList.remove('is-valid')
     phoneRegistrationError.textContent = ''
     phoneRegistrationDialog.showModal()
     phoneRegistrationInput.focus()
@@ -2606,15 +2657,37 @@ phoneRegistrationDialog?.addEventListener('close', () => {
 })
 
 
+function formatBrazilPhone(value) {
+  const digits = value.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '').slice(0, 11)
+
+  if (digits.length <= 2) return digits ? '(' + digits : ''
+  if (digits.length <= 6) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2)
+  if (digits.length <= 10) {
+    return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 6) + '-' + digits.slice(6)
+  }
+  return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7)
+}
+
+
+phoneRegistrationInput?.addEventListener('input', () => {
+  phoneRegistrationInput.value = formatBrazilPhone(phoneRegistrationInput.value)
+  const digits = phoneRegistrationInput.value.replace(/\D/g, '')
+  phoneRegistrationInput
+    .closest('.phone-input-wrap')
+    ?.classList.toggle('is-valid', digits.length >= 10)
+  phoneRegistrationError.textContent = ''
+})
+
+
 phoneRegistrationForm?.addEventListener('submit', (event) => {
   event.preventDefault()
 
   const phone = phoneRegistrationInput.value.trim()
   const digits = phone.replace(/\D/g, '')
 
-  if (digits.length < 10 || digits.length > 13) {
+  if (digits.length < 10 || digits.length > 11) {
     phoneRegistrationError.textContent =
-      'Confira o número com DDD. Use de 10 a 13 dígitos.'
+      'Confira o número: informe o DDD e o celular, ex. (85) 99999-9999.'
     phoneRegistrationInput.focus()
     return
   }
@@ -2866,11 +2939,11 @@ async function initializeGoogleLogin() {
     })
     window.google.accounts.id.renderButton(googleButton, {
       type: 'standard',
-      theme: 'outline',
+      theme: 'filled_black',
       size: 'large',
       text: 'continue_with',
       shape: 'pill',
-      logo_alignment: 'left',
+      logo_alignment: 'center',
       width: Math.min(400, Math.floor(googleButton.getBoundingClientRect().width || 320)),
     })
   } catch (error) {
