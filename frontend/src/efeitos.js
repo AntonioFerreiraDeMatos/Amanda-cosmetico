@@ -202,11 +202,37 @@ function setupButtons() {
   }, { passive: true })
 }
 
+// ---------- cabeçalho que ganha profundidade ao rolar ----------
+function setupHeader() {
+  const header = document.querySelector('.header')
+  if (!header) return
+  const update = rafThrottle(() => header.classList.toggle('fx-scrolled', window.scrollY > 24))
+  window.addEventListener('scroll', update, { passive: true })
+  update()
+}
+
+// ---------- barra de energia das etapas do checkout ----------
+function setupCheckoutProgress() {
+  const progress = document.querySelector('.checkout-progress')
+  if (!progress) return
+  const update = () => {
+    const items = [...progress.querySelectorAll('[data-progress-step]')]
+    const current = items.findIndex((li) => li.getAttribute('aria-current') === 'step')
+    const index = current < 0 ? 0 : current
+    const pct = items.length > 1 ? (index / (items.length - 1)) * 75 : 0
+    progress.style.setProperty('--fx-progress', pct.toFixed(1) + '%')
+  }
+  new MutationObserver(update).observe(progress, { subtree: true, attributes: true, attributeFilter: ['aria-current'] })
+  update()
+}
+
 export function initEffects() {
+  setupCheckoutProgress()
   if (reduceMotion.matches) {
     document.documentElement.classList.add('fx-reduced')
     return
   }
+  setupHeader()
   try {
     setupHero()
     setupTilt()

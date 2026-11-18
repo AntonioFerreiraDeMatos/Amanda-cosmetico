@@ -13,6 +13,7 @@ import { resolveApiUrl } from './api-url.js'
 import { initAccount } from './conta.js'
 import { initEffects } from './efeitos.js'
 import './ajustes.css'
+import './tema-futuro.css'
 
 const apiUrl = resolveApiUrl(
   import.meta.env.VITE_API_URL,
