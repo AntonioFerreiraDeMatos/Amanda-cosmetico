@@ -14,7 +14,13 @@ const pastaDoCodigo = path.resolve(__dirname, '../../uploads');
 
 function escolherPasta() {
     if (process.env.UPLOADS_DIR) return path.resolve(process.env.UPLOADS_DIR);
-    if (process.env.NODE_ENV === 'production') return path.join(os.homedir(), 'amanda-cosmeticos-uploads');
+    if (process.env.NODE_ENV === 'production') {
+        // Na Hostinger o HOME do Node aponta para .../domains/<site>/public_html,
+        // que é apagado a cada publicação do site. Usamos a raiz da conta (/home/<usuário>).
+        const home = os.homedir();
+        const raizConta = home.match(/^\/home\/[^/]+/)?.[0] || home;
+        return path.join(raizConta, 'amanda-cosmeticos-uploads');
+    }
     return pastaDoCodigo;
 }
 
@@ -37,4 +43,10 @@ if (UPLOADS_ROOT !== pastaDoCodigo) {
     }
 }
 
-module.exports = { UPLOADS_ROOT, PRODUTOS_DIR };
+// Recria a pasta se ela tiver sido apagada com o servidor ligado.
+function garantirPastaProdutos() {
+    fs.mkdirSync(PRODUTOS_DIR, { recursive: true });
+    return PRODUTOS_DIR;
+}
+
+module.exports = { UPLOADS_ROOT, PRODUTOS_DIR, garantirPastaProdutos };

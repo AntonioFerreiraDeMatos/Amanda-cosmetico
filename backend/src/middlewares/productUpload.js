@@ -4,7 +4,7 @@ const { randomUUID } = require('crypto');
 const multer = require('multer');
 const { logError } = require('../utils/logger');
 
-const { PRODUTOS_DIR: uploadDirectory } = require('../config/uploads');
+const { PRODUTOS_DIR: uploadDirectory, garantirPastaProdutos } = require('../config/uploads');
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -61,7 +61,13 @@ function removeFile(file) {
 }
 
 const storage = multer.diskStorage({
-    destination: uploadDirectory,
+    destination: (req, file, cb) => {
+        try {
+            cb(null, garantirPastaProdutos());
+        } catch (error) {
+            cb(error);
+        }
+    },
     filename: (req, file, callback) => {
         callback(null, `produto-${randomUUID()}${ALLOWED_TYPES[file.mimetype]}`);
     }
