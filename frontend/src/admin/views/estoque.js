@@ -1,6 +1,7 @@
 import { api, download } from '../api.js'
 import { icon } from '../icons.js'
 import { getProdutos, invalidate } from '../data.js'
+import { mountLeitor } from './leitor.js'
 import {
   esc, money, number, date, dateTime, skeleton, errorState, emptyState, toast, openDialog, formError,
   withBusy, uuid,
@@ -114,6 +115,7 @@ export async function render(root, ctx) {
         <button class="btn btn-primary" type="button" data-action="move">${icon('plus', 16)}Movimentar estoque</button>
       </div>
     </div>
+    <div class="section" id="stock-scanner"></div>
     <div class="grid-2 section" id="stock-summary">${skeleton({ rows: 4 })}</div>
     <section class="card section" aria-labelledby="hist-title">
       <div class="card-head">
@@ -203,5 +205,12 @@ export async function render(root, ctx) {
     loadHistory()
   }
 
+  mountLeitor(root.querySelector('#stock-scanner'), {
+    onDone: reloadAll,
+    onUnknown: (codigo) => {
+      const box = root.querySelector('#stock-scanner .scan-help')
+      if (box) box.innerHTML = `Código <code>${esc(codigo)}</code> não cadastrado. <a href="#/produtos?novo=1&codigo=${encodeURIComponent(codigo)}">Cadastrar produto com este código →</a>`
+    },
+  })
   await Promise.all([loadSummary(), loadHistory()])
 }

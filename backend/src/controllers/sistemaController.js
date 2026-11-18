@@ -6,7 +6,7 @@ const { registrarAuditoria } = require('../utils/auditoria');
 const { logError } = require('../utils/logger');
 
 const CONFIRMACAO = 'ZERAR TUDO';
-const UPLOAD_DIR = path.resolve(__dirname, '../../uploads/produtos');
+const { PRODUTOS_DIR: UPLOAD_DIR } = require('../config/uploads');
 
 // Ordem respeita as chaves estrangeiras (filhos antes dos pais).
 // Mantidos: administradores, admin_auditoria, configuracoes_sistema, schema_migrations.

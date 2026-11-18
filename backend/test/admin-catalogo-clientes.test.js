@@ -69,7 +69,7 @@ test('editar produto desativado sem enviar "ativo" mantém o produto desativado'
     assert.equal(res.statusCode, 200);
     const update = state.statements.find(({ statement }) => statement.startsWith('UPDATE produtos'));
     // ativo é o penúltimo parâmetro (antes de destaque e id)
-    assert.equal(update.params[8], 0);
+    assert.equal(update.params.at(-3), 0);
 });
 
 test('multipart com ativo="false" desativa e destaque="false" não entra na vitrine', async (t) => {
@@ -83,8 +83,8 @@ test('multipart com ativo="false" desativa e destaque="false" não entra na vitr
 
     assert.equal(res.statusCode, 200);
     const update = state.statements.find(({ statement }) => statement.startsWith('UPDATE produtos'));
-    assert.equal(update.params[8], 0);
-    assert.equal(update.params[9], 0);
+    assert.equal(update.params.at(-3), 0);
+    assert.equal(update.params.at(-2), 0);
 });
 
 test('valor inválido em "ativo" é rejeitado', async (t) => {

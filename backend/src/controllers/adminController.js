@@ -5,6 +5,7 @@ const pool = require('../config/database');
 const { reservarNumeroPedido, vincularNumeroPedido } = require('../utils/pedidoNumero');
 const { registrarAuditoria } = require('../utils/auditoria');
 const { logError } = require('../utils/logger');
+const { normalizarCodigoBarras } = require('../utils/codigoBarras');
 const { startOfDayUtc, addDays } = require('../utils/periodo');
 
 // Hash usado quando o e-mail não existe, para o login levar o mesmo tempo
@@ -1972,7 +1973,7 @@ async function listarHistoricoClienteAdmin(req, res) {
 async function listarProdutosAdmin(req, res) {
     try {
         const [produtos] = await pool.query(`
-                 SELECT p.id, p.nome, p.sku, p.preco, p.preco_promocional, p.estoque,
+                 SELECT p.id, p.nome, p.sku, p.codigo_barras, p.preco, p.preco_promocional, p.estoque,
                      p.estoque_minimo, p.ativo, p.destaque, p.categoria_id, p.descricao,
                      (SELECT pi.imagem_url FROM produto_imagens pi WHERE pi.produto_id = p.id AND pi.principal = TRUE ORDER BY pi.ordem LIMIT 1) AS imagem_principal,
                      c.nome AS categoria
@@ -2190,6 +2191,9 @@ function validarProduto(body = {}) {
     if (ativoInformado === null || destaqueInformado === null) return null;
     const nome = String(body.nome || '').trim();
     const sku = String(body.sku || '').trim();
+    // Campo ausente = manter o código atual (edição); vazio = remover.
+    const codigoBarras = body.codigo_barras === undefined ? undefined : normalizarCodigoBarras(body.codigo_barras);
+    if (codigoBarras === false) return null;
     const descricao = String(body.descricao || '').trim();
     if (nome.length > 200 || sku.length > 100 || descricao.length > 20000) return null;
     const categoriaId = Number(body.categoria_id);
@@ -2213,6 +2217,7 @@ function validarProduto(body = {}) {
         estoqueMinimo,
         descricao,
         sku: sku || null,
+        codigoBarras,
         // Checkbox desmarcado não é enviado: ausência de "destaque" = fora da vitrine.
         destaque: destaqueInformado ? 1 : 0,
         // Ausência de "ativo" = manter o valor atual (na criação, ativo).
@@ -2247,9 +2252,9 @@ async function criarProdutoAdmin(req, res) {
         }
         const slug = slugify(produto.nome) + '-' + Date.now().toString(36);
         const [result] = await connection.query(
-            `INSERT INTO produtos (categoria_id, nome, slug, descricao, sku, preco, preco_promocional, estoque, estoque_minimo, ativo, destaque)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [produto.categoriaId, produto.nome, slug, produto.descricao || null, produto.sku, produto.preco, produto.promocional, produto.estoque, produto.estoqueMinimo, produto.ativo, produto.destaque]
+            `INSERT INTO produtos (categoria_id, nome, slug, descricao, sku, codigo_barras, preco, preco_promocional, estoque, estoque_minimo, ativo, destaque)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [produto.categoriaId, produto.nome, slug, produto.descricao || null, produto.sku, produto.codigoBarras ?? null, produto.preco, produto.promocional, produto.estoque, produto.estoqueMinimo, produto.ativo, produto.destaque]
         );
         const imagemUrl = imagemAnexada(req);
         if (imagemUrl) {
@@ -2283,6 +2288,7 @@ async function criarProdutoAdmin(req, res) {
                 categoria_id: produto.categoriaId,
                 nome: produto.nome,
                 sku: produto.sku,
+                codigo_barras: produto.codigoBarras ?? null,
                 preco: produto.preco,
                 preco_promocional: produto.promocional,
                 estoque: produto.estoque,
@@ -2297,7 +2303,7 @@ async function criarProdutoAdmin(req, res) {
     } catch (error) {
         if (connection && !committed) await connection.rollback();
         if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ sucesso: false, mensagem: 'Já existe um produto com esse SKU.' });
+            return res.status(409).json({ sucesso: false, mensagem: 'Já existe um produto com esse SKU ou código de barras.' });
         }
         logError('Erro ao criar produto', error);
         return res.status(500).json({ sucesso: false, mensagem: 'Não foi possível criar o produto.' });
@@ -2327,7 +2333,7 @@ async function atualizarProdutoAdmin(req, res) {
             return res.status(400).json({ sucesso: false, mensagem: 'Categoria inválida.' });
         }
         const [[anterior]] = await connection.query(`
-            SELECT id, categoria_id, nome, descricao, sku, preco,
+            SELECT id, categoria_id, nome, descricao, sku, codigo_barras, preco,
                 preco_promocional, estoque, estoque_minimo, ativo, destaque
             FROM produtos
             WHERE id = ?
@@ -2349,8 +2355,8 @@ async function atualizarProdutoAdmin(req, res) {
             });
         }
         await connection.query(
-            `UPDATE produtos SET categoria_id = ?, nome = ?, descricao = ?, sku = ?, preco = ?, preco_promocional = ?, estoque = ?, estoque_minimo = ?, ativo = ?, destaque = ? WHERE id = ?`,
-            [produto.categoriaId, produto.nome, produto.descricao || null, produto.sku, produto.preco, produto.promocional, produto.estoque, produto.estoqueMinimo, produto.ativo, produto.destaque, id]
+            `UPDATE produtos SET categoria_id = ?, nome = ?, descricao = ?, sku = ?, codigo_barras = ?, preco = ?, preco_promocional = ?, estoque = ?, estoque_minimo = ?, ativo = ?, destaque = ? WHERE id = ?`,
+            [produto.categoriaId, produto.nome, produto.descricao || null, produto.sku, produto.codigoBarras === undefined ? anterior.codigo_barras : produto.codigoBarras, produto.preco, produto.promocional, produto.estoque, produto.estoqueMinimo, produto.ativo, produto.destaque, id]
         );
         if (estoqueAlterado) {
             await connection.query(`
@@ -2385,6 +2391,7 @@ async function atualizarProdutoAdmin(req, res) {
                 categoria_id: Number(anterior.categoria_id),
                 nome: anterior.nome,
                 sku: anterior.sku,
+                codigo_barras: anterior.codigo_barras,
                 preco: Number(anterior.preco),
                 preco_promocional: anterior.preco_promocional == null ? null : Number(anterior.preco_promocional),
                 estoque: estoqueAnterior,
@@ -2396,6 +2403,7 @@ async function atualizarProdutoAdmin(req, res) {
                 categoria_id: produto.categoriaId,
                 nome: produto.nome,
                 sku: produto.sku,
+                codigo_barras: produto.codigoBarras === undefined ? anterior.codigo_barras : produto.codigoBarras,
                 preco: produto.preco,
                 preco_promocional: produto.promocional,
                 estoque: produto.estoque,
@@ -2410,7 +2418,7 @@ async function atualizarProdutoAdmin(req, res) {
     } catch (error) {
         if (connection && !committed) await connection.rollback();
         if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ sucesso: false, mensagem: 'Já existe um produto com esse SKU.' });
+            return res.status(409).json({ sucesso: false, mensagem: 'Já existe um produto com esse SKU ou código de barras.' });
         }
         logError('Erro ao atualizar produto', error);
         return res.status(500).json({ sucesso: false, mensagem: 'Não foi possível atualizar o produto.' });

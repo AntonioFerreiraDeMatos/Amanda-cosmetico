@@ -4,7 +4,7 @@ const { randomUUID } = require('crypto');
 const multer = require('multer');
 const { logError } = require('../utils/logger');
 
-const uploadDirectory = path.resolve(__dirname, '../../uploads/produtos');
+const { PRODUTOS_DIR: uploadDirectory } = require('../config/uploads');
 fs.mkdirSync(uploadDirectory, { recursive: true });
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;

@@ -71,7 +71,7 @@ app.use(
         res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; sandbox");
         next();
     },
-    express.static(path.resolve(__dirname, '../uploads'), {
+    express.static(require('./config/uploads').UPLOADS_ROOT, {
         dotfiles: 'deny',
         index: false,
         redirect: false,

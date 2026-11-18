@@ -282,9 +282,11 @@ async function criarPedido(req, res) {
 
         if (!clientes.length) {
             await connection.rollback();
-            return res.status(404).json({
+            // Conta apagada (ex.: "zerar dados de teste") com sessão antiga no aparelho.
+            return res.status(401).json({
                 sucesso: false,
-                mensagem: 'Cliente não encontrado.'
+                codigo: 'SESSAO_INVALIDA',
+                mensagem: 'Sua sessão expirou. Entre novamente para concluir o pedido.'
             });
         }
 

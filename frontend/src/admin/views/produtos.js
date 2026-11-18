@@ -6,6 +6,7 @@ import {
   withBusy, parseMoney, moneyInput,
 } from '../ui.js'
 import { openMovement } from './estoque.js'
+import { openCameraScanner, feedback } from '../scanner.js'
 
 const VIEW_KEY = 'amanda_admin_produtos_view'
 const MAX_IMAGE = 5 * 1024 * 1024
@@ -24,6 +25,7 @@ function fullBody(p, overrides = {}) {
     estoque: Number(p.estoque),
     estoque_minimo: Number(p.estoque_minimo),
     sku: p.sku || '',
+    codigo_barras: p.codigo_barras || '',
     descricao: p.descricao || '',
     destaque: Number(p.destaque) === 1,
     ativo: Number(p.ativo) === 1,
@@ -51,7 +53,7 @@ export async function render(root, ctx) {
       </div>
     </div>
     <form class="card filters" role="search" aria-label="Filtrar produtos">
-      <div class="field grow"><label for="p-q">Buscar</label><input id="p-q" name="q" type="search" value="${esc(f.q)}" placeholder="Nome ou SKU"></div>
+      <div class="field grow"><label for="p-q">Buscar</label><input id="p-q" name="q" type="search" value="${esc(f.q)}" placeholder="Nome, SKU ou código de barras" data-scan-input></div>
       <div class="field"><label for="p-cat">Categoria</label><select id="p-cat" name="categoria"><option value="">Todas</option></select></div>
       <div class="field"><label for="p-sit">Situação</label>
         <select id="p-sit" name="situacao">
@@ -100,7 +102,7 @@ export async function render(root, ctx) {
   function filtered() {
     const term = f.q.toLowerCase()
     return produtos.filter((p) => {
-      if (term && !`${p.nome} ${p.sku || ''}`.toLowerCase().includes(term)) return false
+      if (term && !`${p.nome} ${p.sku || ''} ${p.codigo_barras || ''}`.toLowerCase().includes(term)) return false
       if (f.categoria && String(p.categoria_id) !== f.categoria) return false
       if (f.situacao === 'ativo' && Number(p.ativo) !== 1) return false
       if (f.situacao === 'inativo' && Number(p.ativo) === 1) return false
@@ -242,7 +244,7 @@ export async function render(root, ctx) {
 
   root.querySelector('[data-action="new"]').addEventListener('click', () => openForm(null))
 
-  function openForm(p) {
+  function openForm(p, prefillCodigo = '') {
     const editing = Boolean(p)
     const ativas = categorias.filter((c) => Number(c.ativo) === 1 || (p && String(c.id) === String(p.categoria_id)))
     if (!ativas.length) {
@@ -260,6 +262,7 @@ export async function render(root, ctx) {
             <div class="field"><label for="pf-cat">Categoria <span class="req" aria-hidden="true">*</span></label>
               <select id="pf-cat" name="categoria_id" required><option value="">Selecione...</option>${ativas.map((c) => `<option value="${Number(c.id)}" ${p && String(c.id) === String(p.categoria_id) ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></div>
             <div class="field"><label for="pf-sku">SKU</label><input id="pf-sku" name="sku" maxlength="100" value="${esc(p?.sku || '')}"></div>
+            <div class="field"><label for="pf-ean">Código de barras</label><div class="input-action"><input id="pf-ean" name="codigo_barras" maxlength="64" inputmode="numeric" data-scan-input placeholder="Bipe ou digite" value="${esc(p?.codigo_barras || prefillCodigo || '')}"><button class="btn btn-icon" type="button" data-scan-camera aria-label="Ler pela câmera">${icon('camera', 16)}</button></div></div>
             <div class="field"><label for="pf-preco">Preço (R$) <span class="req" aria-hidden="true">*</span></label><input id="pf-preco" name="preco" inputmode="decimal" required placeholder="49,90" value="${esc(moneyInput(p?.preco))}"></div>
             <div class="field"><label for="pf-promo">Preço promocional (R$)</label><input id="pf-promo" name="preco_promocional" inputmode="decimal" placeholder="Opcional" value="${esc(moneyInput(p?.preco_promocional))}"></div>
             <div class="field"><label for="pf-est">Estoque ${editing ? '' : 'inicial'} <span class="req" aria-hidden="true">*</span></label><input id="pf-est" name="estoque" type="number" min="0" step="1" required value="${Number(p?.estoque ?? 0)}"></div>
@@ -286,6 +289,8 @@ export async function render(root, ctx) {
         </form>`,
     })
     const form = body.querySelector('form')
+    form.querySelector('[data-scan-camera]').addEventListener('click', () => openCameraScanner({ onCode: (c) => { form.elements.codigo_barras.value = c; feedback(true) } }))
+    form.elements.codigo_barras.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); feedback(true) } })
     const estoqueOriginal = Number(p?.estoque ?? 0)
     form.elements.estoque.addEventListener('input', () => {
       if (editing) form.querySelector('[data-motivo]').hidden = Number(form.elements.estoque.value) === estoqueOriginal
@@ -328,6 +333,7 @@ export async function render(root, ctx) {
       data.set('nome', nome)
       data.set('categoria_id', form.elements.categoria_id.value)
       data.set('sku', form.elements.sku.value.trim())
+      data.set('codigo_barras', form.elements.codigo_barras.value.replace(/s+/g, ''))
       data.set('preco', preco.toFixed(2))
       data.set('preco_promocional', promo === null ? '' : promo.toFixed(2))
       data.set('estoque', String(estoque))
@@ -351,4 +357,5 @@ export async function render(root, ctx) {
   }
 
   await load()
+  if (ctx.query.get('novo') === '1') openForm(null, ctx.query.get('codigo') || '')
 }

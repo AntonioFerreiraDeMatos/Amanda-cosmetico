@@ -12,6 +12,7 @@ import amandaVideo from './assets/videos/amanda-destaque.mp4'
 import { resolveApiUrl } from './api-url.js'
 import { initAccount } from './conta.js'
 import { initEffects } from './efeitos.js'
+import './ajustes.css'
 
 const apiUrl = resolveApiUrl(
   import.meta.env.VITE_API_URL,
@@ -836,7 +837,7 @@ document.querySelector('#app').innerHTML = `
             <input name="rua" autocomplete="address-line1" maxlength="200" required>
           </label>
           <label>
-            Complemento <span class="optional-label">opcional</span>
+            <span>Complemento <span class="optional-label">(opcional)</span></span>
             <input name="complemento" maxlength="100">
           </label>
           <label>
@@ -2455,6 +2456,24 @@ function renderOrderTracking(data) {
   `
 }
 
+function checkoutError(message, status) {
+  const error = new Error(message)
+  error.status = status
+  return error
+}
+
+// Sessão expirada ou conta apagada: limpa a sessão, guarda o carrinho e leva ao login.
+function handleExpiredCustomerSession(message) {
+  try {
+    localStorage.removeItem('amanda_customer_token')
+    localStorage.removeItem('amanda_customer_user')
+  } catch { /* ignore */ }
+  window.dispatchEvent(new CustomEvent('amanda:auth-changed', { detail: { loggedIn: false } }))
+  closeCart()
+  window.location.hash = '#login'
+  showAuthFeedback(message || 'Sua sessão expirou. Entre novamente para concluir o pedido.', true)
+}
+
 async function requestCustomerOrder(id) {
   const customerToken = localStorage.getItem('amanda_customer_token')
   if (!customerToken) {
@@ -2466,9 +2485,9 @@ async function requestCustomerOrder(id) {
   const response = await fetch(`${apiUrl}/pedidos/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${customerToken}` },
   })
-  const data = await response.json()
+  const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.mensagem || 'Não foi possível carregar o pedido.')
+    throw checkoutError(data.mensagem || 'Não foi possível carregar o pedido.', response.status)
   }
   return data
 }
@@ -2488,6 +2507,15 @@ async function restoreSavedOrder() {
     renderOrderTracking(data)
     setCheckoutStep(checkoutStep)
   } catch (error) {
+    if (error.status === 401) {
+      handleExpiredCustomerSession(error.message)
+      return
+    }
+    if (error.status === 404) {
+      resetCurrentOrder()
+      checkoutFeedback.textContent = 'O pedido salvo neste aparelho não está mais disponível.'
+      return
+    }
     checkoutFeedback.textContent = error.message || 'Não foi possível recuperar o pedido.'
     setCheckoutStep(checkoutStep >= 3 ? checkoutStep : 3)
   }
@@ -2537,9 +2565,9 @@ checkoutButton?.addEventListener('click', async () => {
         },
         body: JSON.stringify(requestBody),
       })
-      data = await response.json()
+      data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(data.mensagem || 'Não foi possível registrar o pedido.')
+        throw checkoutError(data.mensagem || 'Não foi possível registrar o pedido.', response.status)
       }
     }
 
@@ -2556,8 +2584,19 @@ checkoutButton?.addEventListener('click', async () => {
     currentOrder = data
     renderOrderTracking(data)
     setCheckoutStep(3)
+    requestAnimationFrame(() => orderConfirmation?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   } catch (error) {
     console.error('Falha ao registrar ou recuperar o pedido:', error)
+    if (error.status === 401) {
+      handleExpiredCustomerSession(error.message)
+      return
+    }
+    if (error.status === 404 && currentOrderId) {
+      // O pedido salvo neste aparelho não existe mais: recomeça a compra.
+      resetCurrentOrder()
+      checkoutFeedback.textContent = 'Esse pedido não está mais disponível. Escolha os produtos e finalize de novo.'
+      return
+    }
     checkoutFeedback.textContent = error.message || 'Não foi possível concluir o pedido. Tente novamente.'
   } finally {
     isCreatingOrder = false
@@ -2581,6 +2620,12 @@ document.querySelector('[data-refresh-order]')?.addEventListener('click', async 
     renderOrderTracking(data)
     setCheckoutStep(4)
   } catch (error) {
+    if (error.status === 401) return handleExpiredCustomerSession(error.message)
+    if (error.status === 404) {
+      resetCurrentOrder()
+      checkoutFeedback.textContent = 'Esse pedido não está mais disponível.'
+      return
+    }
     checkoutFeedback.textContent = error.message || 'Não foi possível atualizar o pedido.'
   } finally {
     button.disabled = false

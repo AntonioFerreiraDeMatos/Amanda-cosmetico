@@ -1,4 +1,8 @@
 const express = require('express');
+const {
+    buscarProdutoPorCodigoAdmin,
+    movimentarEstoqueLoteAdmin
+} = require('../controllers/estoqueLeitorController');
 const requireAdmin = require('../middlewares/adminAuth');
 const uploadProductImage = require('../middlewares/productUpload');
 const { adminLoginLimiter, adminLimiter } = require('../middlewares/security');
@@ -85,6 +89,8 @@ router.delete('/pedidos/:id', excluirPedidoAdmin);
 // Estoque e auditoria
 router.get('/estoque/movimentacoes', listarMovimentacoesEstoqueAdmin);
 router.post('/estoque/movimentacoes', movimentarEstoqueAdmin);
+router.post('/estoque/lote', movimentarEstoqueLoteAdmin);
+router.get('/produtos/codigo/:codigo', buscarProdutoPorCodigoAdmin);
 router.get('/auditoria', listarAuditoriaAdmin);
 
 // Clientes
