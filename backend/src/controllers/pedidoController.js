@@ -649,5 +649,7 @@ async function consultarPedido(req, res) {
 
 module.exports = {
     criarPedido,
-    consultarPedido
+    consultarPedido,
+    buscarPedido,
+    normalizarEndereco
 };

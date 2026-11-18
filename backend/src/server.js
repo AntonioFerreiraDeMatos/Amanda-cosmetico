@@ -19,6 +19,7 @@ const clienteRoutes = require('./routes/clienteRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const pagamentoRoutes = require('./routes/pagamentoRoutes');
 const pedidoRoutes = require('./routes/pedidoRoutes');
+const contaRoutes = require('./routes/contaRoutes');
 
 const app = express();
 
@@ -122,6 +123,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/pagamentos', pagamentoRoutes);
 app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/conta', contaRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

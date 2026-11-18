@@ -1,0 +1,342 @@
+/* =========================================================
+   EXPERIÊNCIA VISUAL — profundidade e movimento com propósito
+   ========================================================= */
+
+/* ---------- HERO ---------- */
+
+.fx-hero {
+  --px: 0;
+  --py: 0;
+  --scroll: 0;
+}
+
+.fx-hero .hero-content {
+  transform: translate3d(0, calc(var(--scroll) * -40px), 0);
+  opacity: calc(1 - var(--scroll) * .6);
+  will-change: transform;
+}
+
+.fx-hero .hero-logo {
+  perspective: 1200px;
+  transform: translate3d(0, calc(var(--scroll) * 60px), 0);
+}
+
+/* cada camada se move numa velocidade diferente: sensação de profundidade */
+.fx-hero .hero-logo::before {
+  transform: translate3d(calc(var(--px) * -14px), calc(var(--py) * -14px), 0);
+  transition: transform .6s var(--ease);
+}
+
+.fx-hero .hero-orbit {
+  translate: calc(var(--px) * 22px) calc(var(--py) * 22px);
+  transition: translate .7s var(--ease);
+}
+
+.fx-hero .hero-glow {
+  translate: calc(var(--px) * 30px) calc(var(--py) * 30px);
+  transition: translate .8s var(--ease);
+}
+
+.fx-hero .hero-logo img {
+  rotate: x calc(var(--py) * -8deg);
+  translate: calc(var(--px) * 18px) calc(var(--py) * 12px);
+  transition: transform .5s var(--ease), translate .5s var(--ease), rotate .5s var(--ease);
+}
+
+.fx-hero-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* faixa de luz que atravessa o círculo do logo de tempos em tempos */
+.fx-light {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(410px, 88%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+}
+
+.fx-light::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, .85) 50%, transparent 60%);
+  transform: translateX(-120%);
+  animation: fxSweep 7s var(--ease) infinite 1.5s;
+}
+
+@keyframes fxSweep {
+  0%, 70% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+/* esferas "de vidro" flutuando em camadas diferentes */
+.fx-float {
+  position: absolute;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 38%),
+    radial-gradient(circle at 60% 70%, rgba(217, 95, 139, .35), rgba(244, 184, 202, .15) 70%);
+  box-shadow:
+    inset -4px -6px 14px rgba(189, 63, 112, .18),
+    0 14px 30px rgba(150, 50, 87, .14);
+  animation: fxBob 9s ease-in-out infinite;
+  transition: translate .9s var(--ease);
+}
+
+.fx-float--1 {
+  top: 12%; left: 10%;
+  width: 54px; height: 54px;
+  translate: calc(var(--px) * 40px) calc(var(--py) * 40px);
+}
+
+.fx-float--2 {
+  top: 70%; left: 4%;
+  width: 26px; height: 26px;
+  animation-delay: -3s;
+  translate: calc(var(--px) * 60px) calc(var(--py) * 60px);
+}
+
+.fx-float--3 {
+  top: 18%; right: 8%;
+  width: 34px; height: 34px;
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 38%),
+    radial-gradient(circle at 60% 70%, rgba(201, 155, 74, .4), rgba(232, 205, 145, .18) 70%);
+  animation-delay: -5s;
+  translate: calc(var(--px) * 50px) calc(var(--py) * 50px);
+}
+
+.fx-float--4 {
+  bottom: 10%; right: 14%;
+  width: 70px; height: 70px;
+  opacity: .8;
+  animation-delay: -7s;
+  translate: calc(var(--px) * 26px) calc(var(--py) * 26px);
+}
+
+@keyframes fxBob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-16px) rotate(8deg); }
+}
+
+.fx-sparkle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  opacity: 0;
+  animation: fxTwinkle 4s ease-in-out infinite;
+}
+
+.fx-sparkle--1 { top: 22%; left: 30%; }
+.fx-sparkle--2 { top: 62%; right: 22%; animation-delay: -1.4s; width: 10px; height: 10px; }
+.fx-sparkle--3 { bottom: 20%; left: 24%; animation-delay: -2.6s; background: var(--rosa); }
+
+@keyframes fxTwinkle {
+  0%, 100% { opacity: 0; transform: scale(.4) rotate(0); }
+  50% { opacity: .9; transform: scale(1) rotate(45deg); }
+}
+
+/* ---------- CARDS DE PRODUTO ---------- */
+
+.products-grid,
+.product-category-group {
+  perspective: 1400px;
+}
+
+.product-card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --glare-x: 50%;
+  --glare-y: 0%;
+  transform-style: preserve-3d;
+}
+
+.product-card.visible.is-tilting {
+  transform: translateY(-10px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transition:
+    transform .18s ease-out,
+    box-shadow .4s var(--ease),
+    border-color .4s var(--ease);
+  box-shadow:
+    0 30px 60px rgba(120, 40, 70, .16),
+    0 10px 20px rgba(120, 40, 70, .08);
+}
+
+/* brilho de embalagem que acompanha o mouse */
+.product-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--glare-x) var(--glare-y), rgba(255, 255, 255, .5), transparent 50%);
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  transition: opacity .35s var(--ease);
+}
+
+.product-card.is-tilting::before {
+  opacity: 1;
+}
+
+.product-card.is-tilting .product-image img {
+  transform: translateZ(30px) scale(1.06);
+}
+
+.product-card.is-tilting .product-info {
+  transform: translateZ(18px);
+  transition: transform .3s var(--ease);
+}
+
+/* ---------- ADICIONAR AO CARRINHO ---------- */
+
+.fx-fly {
+  position: fixed;
+  z-index: 1200;
+  border-radius: 50%;
+  object-fit: cover;
+  pointer-events: none;
+  box-shadow: 0 16px 40px rgba(150, 50, 87, .35), 0 0 0 4px #fff;
+}
+
+.cart-trigger.fx-bump {
+  animation: fxBump .5s var(--ease);
+}
+
+.cart-trigger.fx-bump .cart-count {
+  animation: fxCount .5s var(--ease);
+}
+
+@keyframes fxBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12) rotate(-4deg); }
+  70% { transform: scale(.96) rotate(2deg); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fxCount {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.5); background: var(--gold); }
+  100% { transform: scale(1); }
+}
+
+.product-add.fx-added {
+  animation: fxPress .45s var(--ease);
+}
+
+@keyframes fxPress {
+  0% { transform: scale(1); }
+  30% { transform: scale(.92); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- MICROINTERAÇÕES DOS BOTÕES ---------- */
+
+.btn-primary,
+.product-add,
+.acc-btn,
+.phone-registration-submit {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.fx-ripple::after {
+  content: "";
+  position: absolute;
+  top: var(--ripple-y);
+  left: var(--ripple-x);
+  z-index: -1;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .45);
+  transform: translate(-50%, -50%) scale(0);
+  animation: fxRipple .6s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes fxRipple {
+  to { transform: translate(-50%, -50%) scale(28); opacity: 0; }
+}
+
+/* ---------- ENTRADA AO ROLAR ---------- */
+
+.fx-ready .fx-reveal {
+  opacity: 0;
+  transform: translate3d(0, 34px, 0) scale(.985);
+  filter: blur(4px);
+  transition:
+    opacity .9s var(--ease) var(--fx-delay, 0ms),
+    transform 1s var(--ease) var(--fx-delay, 0ms),
+    filter .9s var(--ease) var(--fx-delay, 0ms);
+}
+
+.fx-ready .fx-reveal.fx-in {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* transição elegante ao trocar de categoria */
+.product-category-group.fx-in .product-card {
+  animation: fxCardIn .7s var(--ease) both;
+}
+
+.product-category-group.fx-in .product-card:nth-child(2) { animation-delay: .06s; }
+.product-category-group.fx-in .product-card:nth-child(3) { animation-delay: .12s; }
+.product-category-group.fx-in .product-card:nth-child(4) { animation-delay: .18s; }
+.product-category-group.fx-in .product-card:nth-child(n+5) { animation-delay: .24s; }
+
+@keyframes fxCardIn {
+  from { opacity: 0; transform: translateY(24px) rotateX(8deg); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- CELULAR: mais leve ---------- */
+
+@media (max-width: 767px) {
+  .fx-float--1,
+  .fx-float--4 {
+    width: 36px;
+    height: 36px;
+  }
+
+  .fx-float--2,
+  .fx-sparkle--3 {
+    display: none;
+  }
+
+  .fx-ready .fx-reveal {
+    filter: none;
+    transform: translate3d(0, 22px, 0);
+  }
+
+  .fx-hero .hero-logo {
+    transform: none;
+  }
+}
+
+/* ---------- MENOS MOVIMENTO ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-hero-stage {
+    display: none;
+  }
+
+  .fx-ready .fx-reveal {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

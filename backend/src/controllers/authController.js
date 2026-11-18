@@ -141,8 +141,7 @@ async function loginGoogle(req, res) {
       if (porEmail.length > 0) {
         return res.status(409).json({
           sucesso: false,
-          mensagem: 'Este e-mail já está cadastrado com outro provedor.',
-          cliente: porEmail[0]
+          mensagem: 'Este e-mail já está cadastrado com outro provedor.'
         });
       }
 

@@ -10,6 +10,8 @@ import heroImg from './assets/hero.png'
 import amandaBrandImg from './assets/images/amanddda.jfif'
 import amandaVideo from './assets/videos/amanda-destaque.mp4'
 import { resolveApiUrl } from './api-url.js'
+import { initAccount } from './conta.js'
+import { initEffects } from './efeitos.js'
 
 const apiUrl = resolveApiUrl(
   import.meta.env.VITE_API_URL,
@@ -2857,6 +2859,9 @@ async function loginGoogle(
   )
   prefillDeliveryContact(data.cliente)
 
+  const continuingPurchase = Boolean(currentOrderId || cart.length)
+  customerAccount.afterLogin({ goToAccount: !continuingPurchase })
+
   if (currentOrderId) {
     await restoreSavedOrder()
   } else if (cart.length) {
@@ -2956,3 +2961,7 @@ async function initializeGoogleLogin() {
 }
 
 initializeGoogleLogin()
+
+
+const customerAccount = initAccount({ apiUrl })
+initEffects()
